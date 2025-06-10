@@ -25,8 +25,6 @@
     "@tanstack/react-query": "^4.36.1",
     "socket.io-client": "^4.7.4",
     "ml-matrix": "^6.10.7",
-    "@tensorflow/tfjs": "^4.15.0",
-    "workbox-window": "^7.0.0",
     "idb": "^7.1.1",
     "comlink": "^4.4.1",
     "react-virtualized": "^9.22.5",
@@ -54,9 +52,7 @@
     "vitest": "^1.6.0",
     "@vitest/ui": "^1.6.0",
     "@vitest/coverage-v8": "^1.6.0",
-    "vite-plugin-pwa": "^0.19.8",
     "@types/uuid": "^9.0.7",
-    "@types/crypto-js": "^4.2.1",
-    "workbox-cli": "^7.0.0"
+    "@types/crypto-js": "^4.2.1"
   }
 }

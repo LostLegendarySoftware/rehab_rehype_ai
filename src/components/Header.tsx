@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Music, Headphones, Mic, Settings, Zap, Crown, Users, Bell, Search, User, CreditCard } from 'lucide-react';
+import { Music, Headphones, Mic, Settings, Zap, Crown, Users, Bell, Search, User, CreditCard, X } from 'lucide-react';
 import { useAudioStore } from '../store/audioStore';
 import SubscriptionModal from './SubscriptionModal';
 import PricingModal from './PricingModal';

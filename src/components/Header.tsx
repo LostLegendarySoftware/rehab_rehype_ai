@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
-import { Music, Headphones, Mic, Settings, Zap, Crown, Users, Bell, Search, User } from 'lucide-react';
+import { Music, Headphones, Mic, Settings, Zap, Crown, Users, Bell, Search, User, CreditCard } from 'lucide-react';
 import { useAudioStore } from '../store/audioStore';
 import SubscriptionModal from './SubscriptionModal';
+import PricingModal from './PricingModal';
+import BillingPanel from './BillingPanel';
 import { SubscriptionTier } from '../services/subscriptionManager';
 
 export default function Header() {
   const { user, setUser } = useAudioStore();
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [showBillingPanel, setShowBillingPanel] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -16,6 +20,7 @@ export default function Header() {
       setUser({ ...user, subscription: tier });
     }
     setShowSubscriptionModal(false);
+    setShowPricingModal(false);
   };
 
   const notifications = [
@@ -68,7 +73,7 @@ export default function Header() {
               
               {user && (
                 <button
-                  onClick={() => setShowSubscriptionModal(true)}
+                  onClick={() => setShowPricingModal(true)}
                   className={`flex items-center space-x-2 px-3 py-1 rounded-full border transition-all duration-300 ${
                     user.subscription === 'enterprise'
                       ? 'bg-yellow-600/20 border-yellow-500/30 text-yellow-400'
@@ -149,11 +154,21 @@ export default function Header() {
                       <button className="w-full text-left px-3 py-2 text-gray-300 hover:bg-gray-800 rounded-lg transition-colors">
                         Profile Settings
                       </button>
-                      <button className="w-full text-left px-3 py-2 text-gray-300 hover:bg-gray-800 rounded-lg transition-colors">
-                        Billing & Usage
+                      <button
+                        onClick={() => {
+                          setShowBillingPanel(true);
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-gray-300 hover:bg-gray-800 rounded-lg transition-colors flex items-center space-x-2"
+                      >
+                        <CreditCard className="w-4 h-4" />
+                        <span>Billing & Usage</span>
                       </button>
                       <button
-                        onClick={() => setShowSubscriptionModal(true)}
+                        onClick={() => {
+                          setShowPricingModal(true);
+                          setShowUserMenu(false);
+                        }}
                         className="w-full text-left px-3 py-2 text-purple-400 hover:bg-gray-800 rounded-lg transition-colors"
                       >
                         Upgrade Plan
@@ -177,6 +192,32 @@ export default function Header() {
         currentTier={user?.subscription || 'free'}
         onUpgrade={handleUpgrade}
       />
+
+      <PricingModal
+        isOpen={showPricingModal}
+        onClose={() => setShowPricingModal(false)}
+        currentPlan={user?.subscription || 'free'}
+      />
+
+      {/* Billing Panel Modal */}
+      {showBillingPanel && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl border border-gray-700/50 max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-8">
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-3xl font-bold text-white">Billing & Usage</h2>
+                <button
+                  onClick={() => setShowBillingPanel(false)}
+                  className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-gray-700/50"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <BillingPanel />
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

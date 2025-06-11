@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
+import { Elements } from '@stripe/react-stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
 import Header from './components/Header';
 import TabNavigation from './components/TabNavigation';
 import EnhanceTab from './components/EnhanceTab';
@@ -10,23 +12,77 @@ import MasterTab from './components/MasterTab';
 import ExportTab from './components/ExportTab';
 import CollaborationPanel from './components/CollaborationPanel';
 import AnalyticsPanel from './components/AnalyticsPanel';
+import UpgradePrompt from './components/UpgradePrompt';
 import { useAudioStore } from './store/audioStore';
+import { SubscriptionManager } from './services/subscriptionManager';
+import { stripeService } from './services/stripeService';
+
+// Initialize Stripe
+const stripePromise = loadStripe('pk_test_51RMt56RGWfat3YdmILDfetArR6MCRuGbooaRddIRetU4FP450G0HTibA5uzYlVr2kjVPOIKikq74nM9hTE3duwuf00BbTNRtKM');
 
 function App() {
   const [activeTab, setActiveTab] = useState('enhance');
   const [showCollaboration, setShowCollaboration] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
-  const { setUser } = useAudioStore();
+  const [upgradePrompt, setUpgradePrompt] = useState<{
+    isOpen: boolean;
+    feature: string;
+    requiredPlan: 'pro' | 'enterprise';
+  }>({ isOpen: false, feature: '', requiredPlan: 'pro' });
+  
+  const { setUser, user } = useAudioStore();
 
-  // Initialize demo user
+  // Initialize demo user and Stripe
   useEffect(() => {
     setUser({
       id: 'demo-user-1',
       email: 'demo@rehabrehype.com',
-      subscription: 'pro',
-      credits: 85
+      subscription: 'free', // Start with free plan
+      credits: 5 // Limited credits for free plan
     });
+
+    // Initialize Stripe service
+    stripeService.initialize().catch(console.error);
   }, [setUser]);
+
+  // Check if user can perform action
+  const checkSubscriptionLimit = (action: string, additionalData?: any) => {
+    if (!user) return false;
+
+    const currentUsage = {
+      projects: 2, // Demo usage
+      fileSize: additionalData?.fileSize || 0,
+      aiCredits: user.credits,
+      collaborators: 1
+    };
+
+    const result = SubscriptionManager.canPerformAction(user.subscription, action, currentUsage);
+    
+    if (!result.allowed) {
+      const recommendation = SubscriptionManager.getUpgradeRecommendation(user.subscription, action);
+      setUpgradePrompt({
+        isOpen: true,
+        feature: action,
+        requiredPlan: recommendation.tier
+      });
+      return false;
+    }
+    
+    return true;
+  };
+
+  const handleUpgradeFromPrompt = () => {
+    setUpgradePrompt({ ...upgradePrompt, isOpen: false });
+    // This would typically open the pricing modal
+    // For now, we'll just simulate an upgrade
+    if (user) {
+      setUser({ 
+        ...user, 
+        subscription: upgradePrompt.requiredPlan,
+        credits: upgradePrompt.requiredPlan === 'pro' ? 100 : 1000
+      });
+    }
+  };
 
   const renderActiveTab = () => {
     if (showAnalytics) {
@@ -92,57 +148,75 @@ function App() {
               isOnline: true
             }
           ]}
-          onInvite={(email, role) => console.log('Invite:', email, role)}
+          onInvite={(email, role) => {
+            if (!checkSubscriptionLimit('add-collaborator')) return;
+            console.log('Invite:', email, role);
+          }}
           onRemove={(id) => console.log('Remove:', id)}
           onRoleChange={(id, role) => console.log('Role change:', id, role)}
         />
       );
     }
 
+    // Pass subscription check function to tabs that need it
+    const tabProps = { checkSubscriptionLimit };
+
     switch (activeTab) {
       case 'enhance':
-        return <EnhanceTab />;
+        return <EnhanceTab {...tabProps} />;
       case 'chat':
-        return <ChatTab />;
+        return <ChatTab {...tabProps} />;
       case 'record':
-        return <RecordTab />;
+        return <RecordTab {...tabProps} />;
       case 'separate':
-        return <SeparateTab />;
+        return <SeparateTab {...tabProps} />;
       case 'master':
-        return <MasterTab />;
+        return <MasterTab {...tabProps} />;
       case 'export':
-        return <ExportTab />;
+        return <ExportTab {...tabProps} />;
       default:
-        return <EnhanceTab />;
+        return <EnhanceTab {...tabProps} />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-      <Header />
-      <TabNavigation 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab}
-        showCollaboration={showCollaboration}
-        setShowCollaboration={setShowCollaboration}
-        showAnalytics={showAnalytics}
-        setShowAnalytics={setShowAnalytics}
-      />
-      <main className="container mx-auto max-w-7xl">
-        {renderActiveTab()}
-      </main>
-      <Toaster
-        position="bottom-right"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: '#1f2937',
-            color: '#fff',
-            border: '1px solid #374151'
-          }
-        }}
-      />
-    </div>
+    <Elements stripe={stripePromise}>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+        <Header />
+        <TabNavigation 
+          activeTab={activeTab} 
+          setActiveTab={setActiveTab}
+          showCollaboration={showCollaboration}
+          setShowCollaboration={setShowCollaboration}
+          showAnalytics={showAnalytics}
+          setShowAnalytics={setShowAnalytics}
+        />
+        <main className="container mx-auto max-w-7xl">
+          {renderActiveTab()}
+        </main>
+        
+        <UpgradePrompt
+          isOpen={upgradePrompt.isOpen}
+          onClose={() => setUpgradePrompt({ ...upgradePrompt, isOpen: false })}
+          onUpgrade={handleUpgradeFromPrompt}
+          feature={upgradePrompt.feature}
+          currentPlan={user?.subscription || 'free'}
+          requiredPlan={upgradePrompt.requiredPlan}
+        />
+        
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#1f2937',
+              color: '#fff',
+              border: '1px solid #374151'
+            }
+          }}
+        />
+      </div>
+    </Elements>
   );
 }
 

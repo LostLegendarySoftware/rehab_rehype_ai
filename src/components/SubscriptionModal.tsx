@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { X, Check, Crown, Zap, Users, Cloud, Download, Sparkles } from 'lucide-react';
+import { X, Check, Crown, Zap, Users, Star, ArrowRight, CreditCard } from 'lucide-react';
 import { SubscriptionManager, SubscriptionTier } from '../services/subscriptionManager';
+import { stripeService } from '../services/stripeService';
+import { useAudioStore } from '../store/audioStore';
+import { toast } from 'react-hot-toast';
 
 interface SubscriptionModalProps {
   isOpen: boolean;
@@ -11,8 +14,27 @@ interface SubscriptionModalProps {
 
 export default function SubscriptionModal({ isOpen, onClose, currentTier, onUpgrade }: SubscriptionModalProps) {
   const [selectedTier, setSelectedTier] = useState<SubscriptionTier>('pro');
+  const [isLoading, setIsLoading] = useState<string | null>(null);
+  const { user } = useAudioStore();
 
   if (!isOpen) return null;
+
+  const handleUpgrade = async (tier: SubscriptionTier) => {
+    if (tier === 'free' || tier === currentTier) return;
+
+    setIsLoading(tier);
+    
+    try {
+      // Get the corresponding Stripe price ID
+      const stripePriceId = tier === 'pro' ? 'price_1234567890' : 'price_0987654321';
+      await stripeService.createCheckoutSession(stripePriceId, user?.id || 'demo-user');
+    } catch (error) {
+      console.error('Upgrade failed:', error);
+      toast.error('Failed to start upgrade process');
+    } finally {
+      setIsLoading(null);
+    }
+  };
 
   const tiers = [
     {
@@ -46,17 +68,6 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier, onUpgr
       popular: false
     }
   ];
-
-  const getFeatureIcon = (feature: string) => {
-    const icons: Record<string, any> = {
-      'projects': Crown,
-      'storage': Cloud,
-      'collaborators': Users,
-      'exports': Download,
-      'processing': Zap
-    };
-    return icons[feature] || Check;
-  };
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -121,13 +132,6 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier, onUpgr
                     </div>
                     
                     <div className="flex items-center space-x-3">
-                      <Cloud className="w-5 h-5 text-cyan-400" />
-                      <span className="text-gray-300">
-                        {limits.cloudStorageGB}GB Cloud Storage
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center space-x-3">
                       <Zap className="w-5 h-5 text-yellow-400" />
                       <span className="text-gray-300">
                         {limits.aiCreditsPerMonth} AI Credits/month
@@ -140,26 +144,12 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier, onUpgr
                         {limits.collaborators === -1 ? 'Unlimited' : limits.collaborators === 0 ? 'No' : limits.collaborators} Collaborators
                       </span>
                     </div>
-                    
-                    <div className="flex items-center space-x-3">
-                      <Download className="w-5 h-5 text-orange-400" />
-                      <span className="text-gray-300">
-                        {limits.exportFormats.length} Export Formats
-                      </span>
-                    </div>
-
-                    {limits.priorityProcessing && (
-                      <div className="flex items-center space-x-3">
-                        <Sparkles className="w-5 h-5 text-pink-400" />
-                        <span className="text-gray-300">Priority Processing</span>
-                      </div>
-                    )}
 
                     {limits.advancedFeatures.length > 0 && (
                       <div className="pt-4 border-t border-gray-700">
                         <h4 className="text-sm font-semibold text-gray-300 mb-2">Advanced Features:</h4>
                         <div className="space-y-2">
-                          {limits.advancedFeatures.map((feature) => (
+                          {limits.advancedFeatures.slice(0, 3).map((feature) => (
                             <div key={feature} className="flex items-center space-x-2">
                               <Check className="w-4 h-4 text-emerald-400" />
                               <span className="text-sm text-gray-400 capitalize">
@@ -173,17 +163,34 @@ export default function SubscriptionModal({ isOpen, onClose, currentTier, onUpgr
                   </div>
 
                   <button
-                    onClick={() => onUpgrade(tier.id)}
-                    disabled={isCurrentTier}
-                    className={`w-full mt-8 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                    onClick={() => handleUpgrade(tier.id)}
+                    disabled={isCurrentTier || isLoading === tier.id}
+                    className={`w-full mt-8 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center justify-center space-x-2 ${
                       isCurrentTier
                         ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                        : isLoading === tier.id
+                        ? 'bg-yellow-600 text-white cursor-not-allowed'
                         : isSelected
                         ? `bg-gradient-to-r ${tier.color} text-white hover:shadow-2xl hover:scale-105`
                         : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                     }`}
                   >
-                    {isCurrentTier ? 'Current Plan' : tier.id === 'free' ? 'Get Started' : 'Upgrade Now'}
+                    {isLoading === tier.id ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
+                        <span>Processing...</span>
+                      </>
+                    ) : isCurrentTier ? (
+                      'Current Plan'
+                    ) : tier.id === 'free' ? (
+                      'Get Started'
+                    ) : (
+                      <>
+                        <CreditCard className="w-5 h-5" />
+                        <span>Upgrade Now</span>
+                        <ArrowRight className="w-5 h-5" />
+                      </>
+                    )}
                   </button>
                 </div>
               );
